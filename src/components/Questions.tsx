@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, gql } from '@apollo/client';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
-  TableRow, 
+import React, { useState } from "react";
+import { useQuery, useMutation, gql } from "@apollo/client";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TablePagination,
   TableSortLabel,
   Paper,
@@ -26,28 +26,35 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   useTheme,
-} from '@mui/material';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
-import InfoIcon from '@mui/icons-material/Info';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import PersonIcon from '@mui/icons-material/Person';
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
-import { useAuth } from '../context/AuthContext';
-import { useColorMode } from '../context/ColorModeContext';
-import CreateQuestionForm from './CreateQuestionForm';
-import EditQuestionForm from './EditQuestionForm';
-import AnswerQuestionForm from './AnswerQuestionForm';
-import { Question, Response, Choice, CacheData, Order, OrderBy } from '../types';
+} from "@mui/material";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import QuestionAnswerIcon from "@mui/icons-material/QuestionAnswer";
+import InfoIcon from "@mui/icons-material/Info";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import PersonIcon from "@mui/icons-material/Person";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
+import { useAuth } from "../context/AuthContext";
+import { useColorMode } from "../context/ColorModeContext";
+import CreateQuestionForm from "./CreateQuestionForm";
+import EditQuestionForm from "./EditQuestionForm";
+import AnswerQuestionForm from "./AnswerQuestionForm";
+import {
+  Question,
+  Response,
+  Choice,
+  CacheData,
+  Order,
+  OrderBy,
+} from "../types";
 
 const GET_QUESTIONS = gql`
   query GetQuestions {
-    questions(n:100) {
+    questions(n: 100) {
       id
       questionText
       pubDate
@@ -91,7 +98,7 @@ const DELETE_RESPONSE = gql`
   }
 `;
 
-const Row: React.FC<{ 
+const Row: React.FC<{
   question: Question;
   index: number;
   onEdit: (question: Question) => void;
@@ -101,65 +108,75 @@ const Row: React.FC<{
   refetch: () => void;
   isExpanded: boolean;
   onToggleExpand: (questionId: string) => void;
-}> = ({ 
-  question, 
-  index, 
-  onEdit, 
-  onAnswer, 
-  onDelete, 
-  isAdmin, 
+}> = ({
+  question,
+  index,
+  onEdit,
+  onAnswer,
+  onDelete,
+  isAdmin,
   refetch,
   isExpanded,
-  onToggleExpand
+  onToggleExpand,
 }) => {
-  const [deleteResponseId, setDeleteResponseId] = React.useState<string | null>(null);
-  const hasDetails = question.questionType === 'MC' || question.responses.length > 0;
-  
-  const [deleteResponse, { loading: deleteResponseLoading }] = useMutation(DELETE_RESPONSE, {
-    update(cache, { data: { deleteResponse } }) {
-      if (deleteResponse.success) {
-        // Update the cache to remove the deleted response
-        const existingData = cache.readQuery<{ questions: Question[] }>({
-          query: GET_QUESTIONS,
-        });
+  const [deleteResponseId, setDeleteResponseId] = React.useState<string | null>(
+    null
+  );
+  const hasDetails =
+    question.questionType === "MC" || question.responses.length > 0;
 
-        if (existingData) {
-          const updatedQuestions = existingData.questions.map(q => {
-            if (q.id === question.id) {
-              return {
-                ...q,
-                responses: q.responses.filter(r => r.id !== deleteResponseId)
-              };
-            }
-            return q;
-          });
-
-          // If this was the last response for an OE question, close the expanded section
-          if (question.questionType === 'OE' && 
-              question.responses.length === 1 && 
-              deleteResponseId === question.responses[0].id) {
-            onToggleExpand(question.id);
-          }
-
-          cache.writeQuery({
+  const [deleteResponse, { loading: deleteResponseLoading }] = useMutation(
+    DELETE_RESPONSE,
+    {
+      update(cache, { data: { deleteResponse } }) {
+        if (deleteResponse.success) {
+          const existingData = cache.readQuery<CacheData>({
             query: GET_QUESTIONS,
-            data: {
-              questions: updatedQuestions
-            }
           });
+
+          if (existingData) {
+            const updatedQuestions = existingData.questions.map((q) =>
+              q.id === question.id
+                ? {
+                    ...q,
+                    responses: q.responses.filter(
+                      (r) => r.id !== deleteResponseId
+                    ),
+                  }
+                : q
+            );
+
+            // If this was the last response for an OE question, close the expanded section
+            if (
+              question.questionType === "OE" &&
+              question.responses.length === 1 &&
+              deleteResponseId === question.responses[0].id
+            ) {
+              onToggleExpand(question.id);
+            }
+
+            // Modify the cache update to avoid deep nesting
+            cache.modify({
+              fields: {
+                questions() {
+                  return updatedQuestions;
+                },
+              },
+            });
+          }
         }
-      }
-    },
-    onCompleted: (data) => {
-      if (data.deleteResponse.success) {
-        setDeleteResponseId(null);
-        refetch(); // Refetch to ensure UI is in sync
-      }
-    },
-    onError: (error) => {
-      console.error('Failed to delete response:', error);
-    },
-  });
+      },
+      onCompleted: (data) => {
+        if (data.deleteResponse.success) {
+          setDeleteResponseId(null);
+          refetch(); // Refetch to ensure UI is in sync
+        }
+      },
+      onError: (error) => {
+        console.error("Failed to delete response:", error);
+      },
+    }
+  );
 
   const handleDeleteResponse = async (responseId: string) => {
     try {
@@ -167,31 +184,31 @@ const Row: React.FC<{
         variables: { responseId },
       });
     } catch (error) {
-      console.error('Delete response operation failed:', error);
+      console.error("Delete response operation failed:", error);
     }
   };
-  
+
   return (
     <>
-      <TableRow 
-        sx={{ 
-          height: '80px',
-          transition: 'all 0.2s ease',
-          '&:hover': {
-            backgroundColor: 'rgba(0, 0, 0, 0.02)',
-            transform: 'translateY(-2px)',
-            boxShadow: '0 4px 8px -2px rgba(0,0,0,0.1)',
+      <TableRow
+        sx={{
+          height: "80px",
+          transition: "all 0.2s ease",
+          "&:hover": {
+            backgroundColor: "rgba(0, 0, 0, 0.02)",
+            transform: "translateY(-2px)",
+            boxShadow: "0 4px 8px -2px rgba(0,0,0,0.1)",
           },
-          '& > td': { 
-            borderRight: '1px solid rgba(224, 224, 224, 1)',
-            borderBottom: '1px solid rgba(224, 224, 224, 1)',
-            '&:first-of-type': {
-              borderLeft: '1px solid rgba(224, 224, 224, 1)',
+          "& > td": {
+            borderRight: "1px solid rgba(224, 224, 224, 1)",
+            borderBottom: "1px solid rgba(224, 224, 224, 1)",
+            "&:first-of-type": {
+              borderLeft: "1px solid rgba(224, 224, 224, 1)",
             },
-            '&:last-child': {
-              borderRight: '1px solid rgba(224, 224, 224, 1)'
-            }
-          }
+            "&:last-child": {
+              borderRight: "1px solid rgba(224, 224, 224, 1)",
+            },
+          },
         }}
       >
         <TableCell align="center">{index}</TableCell>
@@ -201,7 +218,13 @@ const Row: React.FC<{
           </Typography>
         </TableCell>
         <TableCell align="center">
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
             <Typography variant="body2" sx={{ fontWeight: 500 }}>
               {new Date(question.pubDate).toLocaleDateString()}
             </Typography>
@@ -211,7 +234,13 @@ const Row: React.FC<{
           </Box>
         </TableCell>
         <TableCell align="center">
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
             {question.editDate ? (
               <>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -221,49 +250,69 @@ const Row: React.FC<{
                   {new Date(question.editDate).toLocaleTimeString()}
                 </Typography>
               </>
-            ) : '-'}
+            ) : (
+              "-"
+            )}
           </Box>
         </TableCell>
         <TableCell align="center">
-          <Chip 
-            label={question.questionType === 'MC' ? 'Multiple Choice' : 'Open Ended'} 
-            color={question.questionType === 'MC' ? 'primary' : 'default'}
+          <Chip
+            label={
+              question.questionType === "MC" ? "Multiple Choice" : "Open Ended"
+            }
+            color={question.questionType === "MC" ? "primary" : "default"}
             size="small"
             sx={{
               fontWeight: 500,
-              '&.MuiChip-colorPrimary': {
-                background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                color: 'white',
+              "&.MuiChip-colorPrimary": {
+                background: "linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)",
+                color: "white",
               },
-              '&.MuiChip-colorDefault': {
-                background: 'linear-gradient(45deg, #757575 30%, #9E9E9E 90%)',
-                color: 'white',
-              }
+              "&.MuiChip-colorDefault": {
+                background: "linear-gradient(45deg, #757575 30%, #9E9E9E 90%)",
+                color: "white",
+              },
             }}
           />
         </TableCell>
         <TableCell align="center">
-          <Typography variant="body2" sx={{ 
-            fontWeight: 500,
-            color: question.responses.length > 0 ? 'success.main' : 'text.secondary'
-          }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 500,
+              color:
+                question.responses.length > 0
+                  ? "success.main"
+                  : "text.secondary",
+            }}
+          >
             {question.responses.length}
           </Typography>
         </TableCell>
         <TableCell align="center">
           <Stack direction="row" spacing={1} justifyContent="center">
-            <Tooltip title={!hasDetails ? "No details available" : (isExpanded ? "Hide Details" : "Show Details")}>
+            <Tooltip
+              title={
+                !hasDetails
+                  ? "No details available"
+                  : isExpanded
+                  ? "Hide Details"
+                  : "Show Details"
+              }
+            >
               <span>
-                <IconButton 
-                  size="small" 
+                <IconButton
+                  size="small"
                   onClick={() => hasDetails && onToggleExpand(question.id)}
                   disabled={!hasDetails}
                   sx={{
-                    color: isExpanded ? 'primary.main' : 'action.active',
+                    color: isExpanded ? "primary.main" : "action.active",
                     opacity: !hasDetails ? 0.5 : 1,
-                    '&:hover': {
-                      backgroundColor: hasDetails ? 'rgba(25, 118, 210, 0.04)' : 'transparent',
-                    }
+                    "&:hover": {
+                      backgroundColor: hasDetails
+                        ? "rgba(25, 118, 210, 0.04)"
+                        : "transparent",
+                    },
                   }}
                 >
                   <InfoIcon />
@@ -272,14 +321,14 @@ const Row: React.FC<{
             </Tooltip>
             {!isAdmin && (
               <Tooltip title="Answer Question">
-                <IconButton 
-                  size="small" 
+                <IconButton
+                  size="small"
                   onClick={() => onAnswer(question)}
                   sx={{
-                    color: 'success.main',
-                    '&:hover': {
-                      backgroundColor: 'rgba(76, 175, 80, 0.04)',
-                    }
+                    color: "success.main",
+                    "&:hover": {
+                      backgroundColor: "rgba(76, 175, 80, 0.04)",
+                    },
                   }}
                 >
                   <QuestionAnswerIcon />
@@ -289,28 +338,28 @@ const Row: React.FC<{
             {isAdmin && (
               <>
                 <Tooltip title="Edit Question">
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => onEdit(question)}
                     sx={{
-                      color: 'primary.main',
-                      '&:hover': {
-                        backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                      }
+                      color: "primary.main",
+                      "&:hover": {
+                        backgroundColor: "rgba(25, 118, 210, 0.04)",
+                      },
                     }}
                   >
                     <EditIcon />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Delete Question">
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => onDelete(question)}
                     sx={{
-                      color: 'error.main',
-                      '&:hover': {
-                        backgroundColor: 'rgba(211, 47, 47, 0.04)',
-                      }
+                      color: "error.main",
+                      "&:hover": {
+                        backgroundColor: "rgba(211, 47, 47, 0.04)",
+                      },
                     }}
                   >
                     <DeleteIcon />
@@ -324,18 +373,29 @@ const Row: React.FC<{
       <TableRow>
         <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-            <Box sx={{ 
-              margin: 2,
-              backgroundColor: 'rgba(0, 0, 0, 0.02)',
-              borderRadius: 1,
-              p: 2
-            }}>
-              {question.questionType === 'MC' && (
+            <Box
+              sx={{
+                margin: 2,
+                backgroundColor: "rgba(0, 0, 0, 0.02)",
+                borderRadius: 1,
+                p: 2,
+              }}
+            >
+              {question.questionType === "MC" && (
                 <>
-                  <Typography variant="subtitle1" gutterBottom sx={{ color: 'primary.main', fontWeight: 500 }}>
+                  <Typography
+                    variant="subtitle1"
+                    gutterBottom
+                    sx={{ color: "primary.main", fontWeight: 500 }}
+                  >
                     Choices:
                   </Typography>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    flexWrap="wrap"
+                    sx={{ mb: 2 }}
+                  >
                     {question.choices.map((choice) => (
                       <Chip
                         key={choice.id}
@@ -343,11 +403,11 @@ const Row: React.FC<{
                         variant="outlined"
                         size="small"
                         sx={{
-                          borderColor: 'primary.main',
-                          color: 'primary.main',
-                          '&:hover': {
-                            backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                          }
+                          borderColor: "primary.main",
+                          color: "primary.main",
+                          "&:hover": {
+                            backgroundColor: "rgba(25, 118, 210, 0.04)",
+                          },
                         }}
                       />
                     ))}
@@ -357,49 +417,66 @@ const Row: React.FC<{
 
               {question.responses.length > 0 && (
                 <>
-                  <Typography variant="subtitle1" gutterBottom sx={{ color: 'primary.main', fontWeight: 500 }}>
+                  <Typography
+                    variant="subtitle1"
+                    gutterBottom
+                    sx={{ color: "primary.main", fontWeight: 500 }}
+                  >
                     Responses:
                   </Typography>
-                  <Table size="small" sx={{ 
-                    backgroundColor: 'white',
-                    borderRadius: 1,
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    overflow: 'hidden',
-                    '& .MuiTableRow-root:hover': {
-                      backgroundColor: 'rgba(0,0,0,0.02)'
-                    }
-                  }}>
+                  <Table
+                    size="small"
+                    sx={{
+                      backgroundColor: "white",
+                      borderRadius: 1,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                      overflow: "hidden",
+                      "& .MuiTableRow-root:hover": {
+                        backgroundColor: "rgba(0,0,0,0.02)",
+                      },
+                    }}
+                  >
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: 'rgba(0, 0, 0, 0.02)' }}>
-                        <TableCell sx={{ fontWeight: 'bold', width: '60%' }}>Response</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', width: '30%' }}>Timestamp</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', width: '10%' }}>Actions</TableCell>
+                      <TableRow sx={{ backgroundColor: "rgba(0, 0, 0, 0.02)" }}>
+                        <TableCell sx={{ fontWeight: "bold", width: "60%" }}>
+                          Response
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: "bold", width: "30%" }}>
+                          Timestamp
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: "bold", width: "10%" }}>
+                          Actions
+                        </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {question.responses.map((response) => (
                         <TableRow key={response.id} hover>
-                          <TableCell sx={{ 
-                            whiteSpace: 'pre-wrap', 
-                            wordBreak: 'break-word',
-                            fontWeight: 500
-                          }}>
-                            {response.choice ? response.choice.choiceText : response.responseText}
+                          <TableCell
+                            sx={{
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                              fontWeight: 500,
+                            }}
+                          >
+                            {response.choice
+                              ? response.choice.choiceText
+                              : response.responseText}
                           </TableCell>
-                          <TableCell sx={{ color: 'text.secondary' }}>
+                          <TableCell sx={{ color: "text.secondary" }}>
                             {new Date(response.createdAt).toLocaleString()}
                           </TableCell>
                           <TableCell>
                             <Tooltip title="Delete Response">
-                              <IconButton 
-                                size="small" 
+                              <IconButton
+                                size="small"
                                 color="error"
                                 onClick={() => setDeleteResponseId(response.id)}
                                 disabled={deleteResponseLoading}
                                 sx={{
-                                  '&:hover': {
-                                    backgroundColor: 'rgba(211, 47, 47, 0.04)',
-                                  }
+                                  "&:hover": {
+                                    backgroundColor: "rgba(211, 47, 47, 0.04)",
+                                  },
                                 }}
                               >
                                 <DeleteIcon fontSize="small" />
@@ -424,38 +501,46 @@ const Row: React.FC<{
         PaperProps={{
           sx: {
             borderRadius: 2,
-            boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
-          }
+            boxShadow: "0 8px 16px rgba(0,0,0,0.1)",
+          },
         }}
       >
-        <DialogTitle sx={{ 
-          borderBottom: '1px solid rgba(0, 0, 0, 0.12)',
-          color: 'error.main'
-        }}>
+        <DialogTitle
+          sx={{
+            borderBottom: "1px solid rgba(0, 0, 0, 0.12)",
+            color: "error.main",
+          }}
+        >
           Delete Response
         </DialogTitle>
         <DialogContent sx={{ mt: 2 }}>
           <Typography gutterBottom>
             Are you sure you want to delete this response?
           </Typography>
-          <Typography variant="caption" color="error" sx={{ mt: 2, display: 'block' }}>
+          <Typography
+            variant="caption"
+            color="error"
+            sx={{ mt: 2, display: "block" }}
+          >
             This action cannot be undone.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', p: 2 }}>
-          <Button 
+        <DialogActions
+          sx={{ borderTop: "1px solid rgba(0, 0, 0, 0.12)", p: 2 }}
+        >
+          <Button
             onClick={() => setDeleteResponseId(null)}
             disabled={deleteResponseLoading}
             variant="outlined"
             sx={{
-              '&:hover': {
-                backgroundColor: 'rgba(0, 0, 0, 0.04)',
-              }
+              "&:hover": {
+                backgroundColor: "rgba(0, 0, 0, 0.04)",
+              },
             }}
           >
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={() => {
               if (deleteResponseId) {
                 handleDeleteResponse(deleteResponseId);
@@ -465,10 +550,10 @@ const Row: React.FC<{
             variant="contained"
             disabled={deleteResponseLoading}
             sx={{
-              background: 'linear-gradient(45deg, #f44336 30%, #ff1744 90%)',
-              '&:hover': {
-                background: 'linear-gradient(45deg, #d32f2f 30%, #f50057 90%)',
-              }
+              background: "linear-gradient(45deg, #f44336 30%, #ff1744 90%)",
+              "&:hover": {
+                background: "linear-gradient(45deg, #d32f2f 30%, #f50057 90%)",
+              },
             }}
           >
             Delete
@@ -481,20 +566,22 @@ const Row: React.FC<{
 
 const Questions: React.FC = () => {
   const { role, setRole } = useAuth();
-  const isAdmin = role === 'admin';
+  const isAdmin = role === "admin";
   const theme = useTheme();
   const { toggleColorMode } = useColorMode();
-  
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editQuestion, setEditQuestion] = useState<Question | null>(null);
   const [answerQuestion, setAnswerQuestion] = useState<Question | null>(null);
   const [deleteQuestion, setDeleteQuestion] = useState<Question | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage] = useState(10);
-  const [order, setOrder] = useState<Order>('desc');
-  const [orderBy, setOrderBy] = useState<OrderBy>('pubDate');
-  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
-  
+  const [order, setOrder] = useState<Order>("desc");
+  const [orderBy, setOrderBy] = useState<OrderBy>("pubDate");
+  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(
+    new Set()
+  );
+
   const { loading, error, data, refetch } = useQuery(GET_QUESTIONS);
 
   const [deletePoll, { loading: deleteLoading }] = useMutation(DELETE_POLL, {
@@ -504,7 +591,7 @@ const Questions: React.FC = () => {
       }
     },
     onError: (error) => {
-      console.error('Failed to delete question:', error);
+      console.error("Failed to delete question:", error);
     },
   });
 
@@ -514,14 +601,14 @@ const Questions: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (!deleteQuestion) return;
-    
+
     try {
       await deletePoll({
         variables: { questionId: deleteQuestion.id },
       });
       setDeleteQuestion(null);
     } catch (error) {
-      console.error('Delete operation failed:', error);
+      console.error("Delete operation failed:", error);
     }
   };
 
@@ -530,38 +617,38 @@ const Questions: React.FC = () => {
   };
 
   const handleRequestSort = (property: OrderBy) => {
-    const isAsc = orderBy === property && order === 'asc';
-    setOrder(isAsc ? 'desc' : 'asc');
+    const isAsc = orderBy === property && order === "asc";
+    setOrder(isAsc ? "desc" : "asc");
     setOrderBy(property);
     setPage(0); // Reset to first page when sorting
   };
 
   const sortQuestions = (questions: Question[]) => {
     // First sort by creation date (newest first) and assign index
-    const sortedByDate = [...questions].sort((a, b) => 
-      new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
+    const sortedByDate = [...questions].sort(
+      (a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
     );
-    
+
     const questionsWithIndex = sortedByDate.map((q, idx) => ({
       ...q,
-      originalIndex: idx + 1
+      originalIndex: idx + 1,
     }));
 
     // Then sort according to the current sort criteria
     return questionsWithIndex.sort((a, b) => {
-      if (orderBy === 'questionType') {
-        return order === 'asc'
+      if (orderBy === "questionType") {
+        return order === "asc"
           ? a.questionType.localeCompare(b.questionType)
           : b.questionType.localeCompare(a.questionType);
       }
-      if (orderBy === 'editDate') {
-        if (!a.editDate) return order === 'asc' ? -1 : 1;
-        if (!b.editDate) return order === 'asc' ? 1 : -1;
-        return order === 'asc' 
+      if (orderBy === "editDate") {
+        if (!a.editDate) return order === "asc" ? -1 : 1;
+        if (!b.editDate) return order === "asc" ? 1 : -1;
+        return order === "asc"
           ? new Date(a.editDate).getTime() - new Date(b.editDate).getTime()
           : new Date(b.editDate).getTime() - new Date(a.editDate).getTime();
       }
-      return order === 'asc'
+      return order === "asc"
         ? new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime()
         : new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
     });
@@ -572,14 +659,14 @@ const Questions: React.FC = () => {
     newRole: string | null
   ) => {
     if (newRole !== null) {
-      setRole(newRole as 'user' | 'admin');
+      setRole(newRole as "user" | "admin");
       // Clear all expanded states when switching roles
       setExpandedQuestions(new Set());
     }
   };
 
   const handleToggleExpand = (questionId: string) => {
-    setExpandedQuestions(prev => {
+    setExpandedQuestions((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(questionId)) {
         newSet.delete(questionId);
@@ -591,45 +678,58 @@ const Questions: React.FC = () => {
   };
 
   if (loading) return <Typography>Loading...</Typography>;
-  if (error) return <Typography color="error">Error: {error.message}</Typography>;
+  if (error)
+    return <Typography color="error">Error: {error.message}</Typography>;
 
   return (
-    <Box sx={{ 
-      position: 'relative', 
-      minHeight: '100vh',
-      bgcolor: 'background.default',
-      color: 'text.primary',
-      transition: 'background-color 0.3s, color 0.3s'
-    }}>
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: 2, 
-        alignItems: 'center', 
-        width: '100%' 
-      }}>
-        <Box sx={{ 
-          width: '90%', 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          mb: 2 
-        }}>
+    <Box
+      sx={{
+        position: "relative",
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        color: "text.primary",
+        transition: "background-color 0.3s, color 0.3s",
+      }}
+    >
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          alignItems: "center",
+          width: "100%",
+        }}
+      >
+        <Box
+          sx={{
+            width: "90%",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2,
+          }}
+        >
           <IconButton
             onClick={toggleColorMode}
             sx={{
               ml: 1,
-              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-              borderRadius: '50%',
-              '&:hover': {
-                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
-              }
+              backgroundColor:
+                theme.palette.mode === "dark"
+                  ? "rgba(255, 255, 255, 0.08)"
+                  : "rgba(0, 0, 0, 0.04)",
+              borderRadius: "50%",
+              "&:hover": {
+                backgroundColor:
+                  theme.palette.mode === "dark"
+                    ? "rgba(255, 255, 255, 0.12)"
+                    : "rgba(0, 0, 0, 0.08)",
+              },
             }}
           >
-            {theme.palette.mode === 'dark' ? (
-              <Brightness7Icon sx={{ color: 'warning.light' }} />
+            {theme.palette.mode === "dark" ? (
+              <Brightness7Icon sx={{ color: "warning.light" }} />
             ) : (
-              <Brightness4Icon sx={{ color: 'primary.main' }} />
+              <Brightness4Icon sx={{ color: "primary.main" }} />
             )}
           </IconButton>
 
@@ -639,58 +739,66 @@ const Questions: React.FC = () => {
             onChange={handleRoleChange}
             aria-label="role selection"
             sx={{
-              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'white',
-              boxShadow: theme.palette.mode === 'dark' 
-                ? '0 2px 4px rgba(0,0,0,0.2)' 
-                : '0 2px 4px rgba(0,0,0,0.1)',
-              borderRadius: '28px',
-              padding: '4px',
-              '& .MuiToggleButton-root': {
-                border: 'none',
-                borderRadius: '24px',
+              backgroundColor:
+                theme.palette.mode === "dark"
+                  ? "rgba(255, 255, 255, 0.05)"
+                  : "white",
+              boxShadow:
+                theme.palette.mode === "dark"
+                  ? "0 2px 4px rgba(0,0,0,0.2)"
+                  : "0 2px 4px rgba(0,0,0,0.1)",
+              borderRadius: "28px",
+              padding: "4px",
+              "& .MuiToggleButton-root": {
+                border: "none",
+                borderRadius: "24px",
                 mx: 0.5,
                 px: 3,
                 py: 1,
-                textTransform: 'none',
-                color: theme.palette.mode === 'dark' ? 'text.primary' : 'inherit',
-                '&.Mui-selected': {
-                  background: theme.palette.mode === 'dark'
-                    ? 'linear-gradient(45deg, #1976D2 30%, #0D47A1 90%)'
-                    : 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                  color: 'white',
-                  '&:hover': {
-                    background: theme.palette.mode === 'dark'
-                      ? 'linear-gradient(45deg, #1565C0 30%, #0D47A1 90%)'
-                      : 'linear-gradient(45deg, #1976D2 30%, #00B8D4 90%)',
+                textTransform: "none",
+                color:
+                  theme.palette.mode === "dark" ? "text.primary" : "inherit",
+                "&.Mui-selected": {
+                  background:
+                    theme.palette.mode === "dark"
+                      ? "linear-gradient(45deg, #1976D2 30%, #0D47A1 90%)"
+                      : "linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)",
+                  color: "white",
+                  "&:hover": {
+                    background:
+                      theme.palette.mode === "dark"
+                        ? "linear-gradient(45deg, #1565C0 30%, #0D47A1 90%)"
+                        : "linear-gradient(45deg, #1976D2 30%, #00B8D4 90%)",
                   },
                 },
-                '&:hover': {
-                  backgroundColor: theme.palette.mode === 'dark' 
-                    ? 'rgba(255, 255, 255, 0.08)' 
-                    : 'rgba(0, 0, 0, 0.04)',
+                "&:hover": {
+                  backgroundColor:
+                    theme.palette.mode === "dark"
+                      ? "rgba(255, 255, 255, 0.08)"
+                      : "rgba(0, 0, 0, 0.04)",
                 },
               },
             }}
           >
-            <ToggleButton 
-              value="user" 
+            <ToggleButton
+              value="user"
               aria-label="user mode"
               sx={{
-                display: 'flex',
+                display: "flex",
                 gap: 1,
-                alignItems: 'center',
+                alignItems: "center",
               }}
             >
               <PersonIcon />
               <Typography sx={{ fontWeight: 500 }}>User Mode</Typography>
             </ToggleButton>
-            <ToggleButton 
-              value="admin" 
+            <ToggleButton
+              value="admin"
               aria-label="admin mode"
               sx={{
-                display: 'flex',
+                display: "flex",
                 gap: 1,
-                alignItems: 'center',
+                alignItems: "center",
               }}
             >
               <AdminPanelSettingsIcon />
@@ -699,91 +807,106 @@ const Questions: React.FC = () => {
           </ToggleButtonGroup>
         </Box>
 
-        <TableContainer 
-          component={Paper} 
-          sx={{ 
-            maxWidth: '90%',
-            width: '100%',
+        <TableContainer
+          component={Paper}
+          sx={{
+            maxWidth: "90%",
+            width: "100%",
             mb: 4,
-            bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : 'white',
-            boxShadow: theme.palette.mode === 'dark'
-              ? '0 8px 16px -4px rgba(0,0,0,0.3), 0 0 8px -4px rgba(0,0,0,0.2)'
-              : '0 8px 16px -4px rgba(0,0,0,0.1), 0 0 8px -4px rgba(0,0,0,0.05)',
+            bgcolor:
+              theme.palette.mode === "dark" ? "background.paper" : "white",
+            boxShadow:
+              theme.palette.mode === "dark"
+                ? "0 8px 16px -4px rgba(0,0,0,0.3), 0 0 8px -4px rgba(0,0,0,0.2)"
+                : "0 8px 16px -4px rgba(0,0,0,0.1), 0 0 8px -4px rgba(0,0,0,0.05)",
             borderRadius: 2,
-            overflow: 'hidden',
-            border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(224, 224, 224, 1)'}`,
-            '& .MuiTable-root': {
-              borderCollapse: 'separate',
+            overflow: "hidden",
+            border: `1px solid ${
+              theme.palette.mode === "dark"
+                ? "rgba(255, 255, 255, 0.12)"
+                : "rgba(224, 224, 224, 1)"
+            }`,
+            "& .MuiTable-root": {
+              borderCollapse: "separate",
               borderSpacing: 0,
             },
-            '& .MuiTableCell-root': {
-              borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(224, 224, 224, 1)',
+            "& .MuiTableCell-root": {
+              borderColor:
+                theme.palette.mode === "dark"
+                  ? "rgba(255, 255, 255, 0.12)"
+                  : "rgba(224, 224, 224, 1)",
             },
-            '& .MuiTableHead-root .MuiTableRow-root': {
-              background: theme.palette.mode === 'dark'
-                ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)'
-                : 'linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%)',
-            }
+            "& .MuiTableHead-root .MuiTableRow-root": {
+              background:
+                theme.palette.mode === "dark"
+                  ? "linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)"
+                  : "linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%)",
+            },
           }}
         >
           <Table aria-label="questions table">
             <TableHead>
-              <TableRow sx={{ 
-                height: '64px',
-                background: 'linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%)',
-                '& > th': { 
-                  fontWeight: 'bold',
-                  fontSize: '1.3rem',
-                  textAlign: 'center',
-                  borderRight: '1px solid rgba(224, 224, 224, 1)',
-                  borderBottom: '2px solid rgba(224, 224, 224, 1)',
-                  '&:first-of-type': {
-                    borderLeft: '1px solid rgba(224, 224, 224, 1)',
+              <TableRow
+                sx={{
+                  height: "64px",
+                  background:
+                    "linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%)",
+                  "& > th": {
+                    fontWeight: "bold",
+                    fontSize: "1.3rem",
+                    textAlign: "center",
+                    borderRight: "1px solid rgba(224, 224, 224, 1)",
+                    borderBottom: "2px solid rgba(224, 224, 224, 1)",
+                    "&:first-of-type": {
+                      borderLeft: "1px solid rgba(224, 224, 224, 1)",
+                    },
+                    "&:last-child": {
+                      borderRight: "1px solid rgba(224, 224, 224, 1)",
+                    },
                   },
-                  '&:last-child': {
-                    borderRight: '1px solid rgba(224, 224, 224, 1)'
-                  }
-                }
-              }}>
-                <TableCell align="center" sx={{ width: '5%' }}>#</TableCell>
-                <TableCell sx={{ width: '30%' }}>Question</TableCell>
-                <TableCell sx={{ width: '15%' }}>
+                }}
+              >
+                <TableCell align="center" sx={{ width: "5%" }}>
+                  #
+                </TableCell>
+                <TableCell sx={{ width: "30%" }}>Question</TableCell>
+                <TableCell sx={{ width: "15%" }}>
                   <TableSortLabel
-                    active={orderBy === 'pubDate'}
-                    direction={orderBy === 'pubDate' ? order : 'asc'}
-                    onClick={() => handleRequestSort('pubDate')}
+                    active={orderBy === "pubDate"}
+                    direction={orderBy === "pubDate" ? order : "asc"}
+                    onClick={() => handleRequestSort("pubDate")}
                   >
                     Created
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ width: '15%' }}>
+                <TableCell sx={{ width: "15%" }}>
                   <TableSortLabel
-                    active={orderBy === 'editDate'}
-                    direction={orderBy === 'editDate' ? order : 'asc'}
-                    onClick={() => handleRequestSort('editDate')}
+                    active={orderBy === "editDate"}
+                    direction={orderBy === "editDate" ? order : "asc"}
+                    onClick={() => handleRequestSort("editDate")}
                   >
                     Last Modified
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ width: '10%' }}>
+                <TableCell sx={{ width: "10%" }}>
                   <TableSortLabel
-                    active={orderBy === 'questionType'}
-                    direction={orderBy === 'questionType' ? order : 'asc'}
-                    onClick={() => handleRequestSort('questionType')}
+                    active={orderBy === "questionType"}
+                    direction={orderBy === "questionType" ? order : "asc"}
+                    onClick={() => handleRequestSort("questionType")}
                   >
                     Type
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ width: '10%' }}>Responses</TableCell>
-                <TableCell sx={{ width: '15%' }}>Actions</TableCell>
+                <TableCell sx={{ width: "10%" }}>Responses</TableCell>
+                <TableCell sx={{ width: "15%" }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {sortQuestions(data.questions)
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((question: Question & { originalIndex: number }) => (
-                  <Row 
-                    key={question.id} 
+                  <Row
+                    key={question.id}
                     question={question}
                     index={question.originalIndex}
                     onEdit={setEditQuestion}
@@ -809,12 +932,12 @@ const Questions: React.FC = () => {
       </Box>
 
       {isAdmin && (
-        <Fab 
-          color="primary" 
+        <Fab
+          color="primary"
           aria-label="add"
           onClick={() => setIsCreateModalOpen(true)}
           sx={{
-            position: 'fixed',
+            position: "fixed",
             bottom: 32,
             right: 32,
           }}
@@ -823,10 +946,7 @@ const Questions: React.FC = () => {
         </Fab>
       )}
 
-      <Dialog
-        open={!!deleteQuestion}
-        onClose={() => setDeleteQuestion(null)}
-      >
+      <Dialog open={!!deleteQuestion} onClose={() => setDeleteQuestion(null)}>
         <DialogTitle>Delete Question</DialogTitle>
         <DialogContent>
           <Typography gutterBottom>
@@ -837,19 +957,23 @@ const Questions: React.FC = () => {
               Question: "{deleteQuestion.questionText}"
             </Typography>
           )}
-          <Typography variant="caption" color="error" sx={{ mt: 2, display: 'block' }}>
+          <Typography
+            variant="caption"
+            color="error"
+            sx={{ mt: 2, display: "block" }}
+          >
             This action cannot be undone.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button 
+          <Button
             onClick={() => setDeleteQuestion(null)}
             disabled={deleteLoading}
             variant="outlined"
           >
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={handleConfirmDelete}
             color="error"
             variant="contained"
@@ -896,4 +1020,4 @@ const Questions: React.FC = () => {
   );
 };
 
-export default Questions; 
+export default Questions;
